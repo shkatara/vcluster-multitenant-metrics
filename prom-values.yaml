@@ -1,0 +1,97 @@
+# kube-prometheus-stack 92.9.0 values for the single-scrape multi-tenant lab.
+#
+# vCluster names synced pods on the host as <pod>-x-<namespace>-x-<vcluster>.
+# These rules translate that name back into the labels a tenant expects, and
+# keep the physical coordinates in host_pod / host_namespace for platform SREs.
+# The same rules run on cAdvisor (usage) and kube-state-metrics (requests, limits, state),
+# so usage / requests joins work on identical labels.
+#
+# Order matters: host_* labels are written first, namespace and pod are overwritten last.
+x-vcluster-relabelings: &vclusterRelabelings
+  # Fallback for pods whose host name was shortened with a hash (no "-x-" left in the name):
+  # vCluster ends such names with "-" plus 10 hex characters. For those, derive the tenant
+  # from the host namespace convention vc-<name>. Restricting it to hashed names keeps the
+  # vCluster control plane pod (team-a-0) out of the tenant view. The name-based rules below
+  # still handle every pod whose name does contain "-x-".
+  - sourceLabels: [namespace, pod]
+    regex: vc-(.+);.+-[0-9a-f]{10}
+    targetLabel: vcluster
+    replacement: $1
+  - sourceLabels: [pod]
+    regex: (.+-x-.+-x-.+)
+    targetLabel: host_pod
+    replacement: $1
+  - sourceLabels: [namespace, pod]
+    regex: (.+);.+-x-.+-x-.+
+    targetLabel: host_namespace
+    replacement: $1
+  - sourceLabels: [pod]
+    regex: .+-x-.+-x-(.+)
+    targetLabel: vcluster
+    replacement: $1
+  - sourceLabels: [pod]
+    regex: .+-x-(.+)-x-.+
+    targetLabel: namespace
+    replacement: $1
+  - sourceLabels: [pod]
+    regex: (.+)-x-.+-x-.+
+    targetLabel: pod
+    replacement: $1
+
+grafana:
+  enabled: false
+
+alertmanager:
+  enabled: true
+  config:
+    route:
+      receiver: platform
+      group_by: [alertname, vcluster]
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 5m   # short on purpose so the demo sink keeps receiving the firing alert
+      routes:
+        - matchers: ['vcluster="team-a"']
+          receiver: team-a
+        - matchers: ['vcluster="team-b"']
+          receiver: team-b
+        - matchers: ['vcluster="team-c"']
+          receiver: team-c
+    receivers:
+      - name: platform
+      - name: team-a
+        webhook_configs:
+          - url: http://alert-sink.monitoring.svc:8080/team-a
+      - name: team-b
+        webhook_configs:
+          - url: http://alert-sink.monitoring.svc:8080/team-b
+      - name: team-c
+        webhook_configs:
+          - url: http://alert-sink.monitoring.svc:8080/team-c
+
+# The host is a standalone vCluster, so these control plane targets are not scrapeable.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+kubelet:
+  serviceMonitor:
+    cAdvisorMetricRelabelings: *vclusterRelabelings
+
+kube-state-metrics:
+  prometheus:
+    monitor:
+      metricRelabelings: *vclusterRelabelings
+
+prometheus:
+  prometheusSpec:
+    retention: 6h
+    # Pick up PodMonitors, ServiceMonitors and rules without a release label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false

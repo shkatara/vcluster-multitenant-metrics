@@ -1,0 +1,14 @@
+experimental:
+  docker:
+    nodes:
+      - name: worker-1
+      - name: worker-2
+deploy:
+  cni:
+    flannel:
+      enabled: true  # Default Flannel CNI, nodes stay NotReady without a CNI
+
+controlPlane:
+  distro:
+    k8s:
+      version: "v1.35.0"

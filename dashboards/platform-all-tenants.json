@@ -1,0 +1,241 @@
+{
+  "uid": "platform-all-tenants",
+  "title": "All Tenants (platform view)",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "vcluster",
+        "label": "Tenant",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "host-prom"
+        },
+        "query": {
+          "query": "label_values(vcluster:pod_memory_usage_bytes, vcluster)",
+          "refId": "vcluster"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "host-prom"
+        },
+        "query": {
+          "query": "label_values(vcluster:pod_memory_usage_bytes{vcluster=~\"$vcluster\"}, namespace)",
+          "refId": "namespace"
+        },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Tenants reporting",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(count by (vcluster)(vcluster:pod_memory_usage_bytes))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pods across all tenants",
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(vcluster:pod_memory_usage_bytes)",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Memory used per tenant",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (vcluster) (vcluster:pod_memory_usage_bytes{vcluster=~\"$vcluster\",namespace=~\"$namespace\"})",
+          "legendFormat": "{{vcluster}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Memory used per pod, all tenants",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "vcluster:pod_memory_usage_bytes{vcluster=~\"$vcluster\",namespace=~\"$namespace\"}",
+          "legendFormat": "{{vcluster}} {{namespace}}/{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Memory requested per pod, all tenants",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "vcluster:pod_memory_requests_bytes{vcluster=~\"$vcluster\",namespace=~\"$namespace\"}",
+          "legendFormat": "{{vcluster}} {{namespace}}/{{pod}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "bargauge",
+      "title": "Used / requested per pod (1.0 = exactly what was requested)",
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "host-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0.3
+              },
+              {
+                "color": "orange",
+                "value": 0.9
+              },
+              {
+                "color": "red",
+                "value": 1.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "vcluster:pod_memory_usage_over_request:ratio{vcluster=~\"$vcluster\",namespace=~\"$namespace\"}",
+          "legendFormat": "{{vcluster}} {{namespace}}/{{pod}}",
+          "instant": true
+        }
+      ]
+    }
+  ]
+}

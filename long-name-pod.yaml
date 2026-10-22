@@ -1,0 +1,14 @@
+# A pod whose translated host name exceeds 63 characters, so vCluster replaces it with
+# <prefix>-<hash>. Used to show where the name-based relabeling stops matching.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: reconciliation-batch-worker-with-a-very-long-descriptive-name
+  namespace: payments
+spec:
+  containers:
+    - name: app
+      image: nginx:1.29-alpine
+      resources:
+        requests:
+          memory: 16Mi

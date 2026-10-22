@@ -1,0 +1,89 @@
+# Platform Grafana on the host. Its datasource is the host Prometheus itself (no proxy),
+# so it sees every tenant. Only platform engineers should get access to it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-host-provisioning
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Host Prometheus
+        uid: host-prom
+        type: prometheus
+        access: proxy
+        url: http://kube-prom-kube-prometheus-prometheus.monitoring.svc:9090
+        isDefault: true
+        editable: false
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: platform
+        folder: ""
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-host
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-host
+  template:
+    metadata:
+      labels:
+        app: grafana-host
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:12.0.2
+          ports:
+            - containerPort: 3000
+          env:
+            # Lab only. Use a Secret and SSO for anything real.
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+            - name: GF_USERS_DEFAULT_THEME
+              value: light
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          volumeMounts:
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yaml
+              subPath: datasource.yaml
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
+              subPath: dashboards.yaml
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: provisioning
+          configMap:
+            name: grafana-host-provisioning
+        - name: dashboards
+          configMap:
+            name: grafana-host-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-host
+  namespace: monitoring
+spec:
+  selector:
+    app: grafana-host
+  ports:
+    - port: 3000
+      targetPort: 3000

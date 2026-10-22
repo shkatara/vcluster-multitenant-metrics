@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tenant-resource-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: tenant-requested-vs-used
+      interval: 30s
+      rules:
+        - record: vcluster:pod_memory_usage_bytes
+          expr: sum by (vcluster, namespace, pod) (container_memory_working_set_bytes{container!="", vcluster!=""})
+        - record: vcluster:pod_memory_requests_bytes
+          expr: sum by (vcluster, namespace, pod) (kube_pod_container_resource_requests{resource="memory", vcluster!=""})
+        - record: vcluster:pod_memory_usage_over_request:ratio
+          expr: vcluster:pod_memory_usage_bytes / vcluster:pod_memory_requests_bytes
+        - record: vcluster:pod_cpu_usage_over_request:ratio
+          expr: |
+            sum by (vcluster, namespace, pod) (rate(container_cpu_usage_seconds_total{container!="", vcluster!=""}[2m]))
+            /
+            sum by (vcluster, namespace, pod) (kube_pod_container_resource_requests{resource="cpu", vcluster!=""})
+    - name: tenant-alerts
+      rules:
+        - alert: TenantPodMemoryAboveRequest
+          expr: vcluster:pod_memory_usage_over_request:ratio > 0.9
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} uses {{ $value | humanizePercentage }} of its memory request"

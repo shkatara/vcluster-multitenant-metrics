@@ -1,0 +1,6 @@
+# team-a gets its own locked metrics endpoint at default/tenant-metrics inside the vCluster.
+networking:
+  replicateServices:
+    fromHost:
+      - from: monitoring/prom-proxy-team-a
+        to: default/tenant-metrics

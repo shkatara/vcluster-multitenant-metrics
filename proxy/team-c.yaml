@@ -1,0 +1,47 @@
+# Read-only PromQL door for tenant team-c.
+# The tenant value is fixed with -label-value, so the client cannot pick another tenant.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prom-proxy-team-c
+  namespace: monitoring
+  labels:
+    app: prom-proxy-team-c
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prom-proxy-team-c
+  template:
+    metadata:
+      labels:
+        app: prom-proxy-team-c
+    spec:
+      containers:
+        - name: proxy
+          image: quay.io/prometheuscommunity/prom-label-proxy:v0.11.0
+          args:
+            - --insecure-listen-address=0.0.0.0:8080
+            - --upstream=http://kube-prom-kube-prometheus-prometheus.monitoring.svc:9090
+            - --label=vcluster
+            - --label-value=team-c
+            - --error-on-replace
+            - --enable-label-apis
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prom-proxy-team-c
+  namespace: monitoring
+spec:
+  selector:
+    app: prom-proxy-team-c
+  ports:
+    - port: 8080
+      targetPort: 8080

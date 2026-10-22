@@ -1,0 +1,74 @@
+{
+  "uid": "tenant-resources",
+  "title": "Requested vs Used",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "tenant-prom" },
+        "query": { "query": "label_values(vcluster:pod_memory_usage_bytes, namespace)", "refId": "ns" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Memory used (working set) per pod",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "tenant-prom" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "vcluster:pod_memory_usage_bytes{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}/{{pod}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Memory requested per pod",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "tenant-prom" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "vcluster:pod_memory_requests_bytes{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}/{{pod}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "bargauge",
+      "title": "Used / requested (1.0 = exactly what you asked for)",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "tenant-prom" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 0.3 },
+              { "color": "orange", "value": 0.9 },
+              { "color": "red", "value": 1.2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "orientation": "horizontal", "displayMode": "gradient" },
+      "targets": [
+        { "refId": "A", "expr": "vcluster:pod_memory_usage_over_request:ratio{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}/{{pod}}", "instant": true }
+      ]
+    }
+  ]
+}
